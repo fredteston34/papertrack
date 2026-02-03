@@ -17,24 +17,41 @@ const Exits: React.FC<ExitsProps> = ({ onShip, inventory }) => {
     inputRef.current?.focus();
   }, []);
 
+  const sanitizeInput = (input: string): string => {
+      if (!input) return '';
+      let clean = input;
+      const isUSShift = /[#@)\]]/.test(clean) || (clean.includes('&') && clean.includes('*'));
+      if (isUSShift) {
+         const usMap: Record<string, string> = { ')': '0', '!': '1', '@': '2', '#': '3', '$': '4', '%': '5', '^': '6', '&': '7', '*': '8', '(': '9' };
+         clean = clean.split('').map(c => usMap[c] || c).join('');
+      } else {
+         const azertyMap: Record<string, string> = { '&': '1', 'é': '2', '"': '3', '\'': '4', '(': '5', '-': '6', 'è': '7', '_': '8', 'ç': '9', 'à': '0' };
+         clean = clean.split('').map(c => azertyMap[c] || c).join('');
+      }
+      return clean.trim();
+  };
+
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scanValue.trim()) return;
+    
+    // Clean before submitting
+    const cleanedValue = sanitizeInput(scanValue);
 
-    const result = onShip(scanValue);
+    const result = onShip(cleanedValue);
     
     if (result) {
       setLastScanned(result);
       toast.success(`Sortie enregistrée: ${result.rollNumber}`);
       setScanValue('');
     } else {
-        // Check if it was already shipped
-        const alreadyShipped = inventory.find(r => r.rollNumber === scanValue && r.status === StockStatus.SHIPPED);
+        const alreadyShipped = inventory.find(r => r.rollNumber === cleanedValue && r.status === StockStatus.SHIPPED);
         if (alreadyShipped) {
-            toast.error(`Erreur: Bobine ${scanValue} déjà expédiée !`);
+            toast.error(`Erreur: Bobine ${cleanedValue} déjà expédiée !`);
         } else {
-            toast.error(`Bobine ${scanValue} introuvable en stock.`);
+            toast.error(`Bobine ${cleanedValue} introuvable en stock.`);
         }
+        setScanValue('');
     }
   };
 
@@ -52,7 +69,7 @@ const Exits: React.FC<ExitsProps> = ({ onShip, inventory }) => {
                 ref={inputRef}
                 type="text"
                 value={scanValue}
-                onChange={(e) => setScanValue(e.target.value)}
+                onChange={(e) => setScanValue(sanitizeInput(e.target.value))}
                 className="w-full pl-12 pr-4 py-4 text-2xl font-mono text-slate-900 border-2 border-slate-200 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-500/20 outline-none transition-all"
                 placeholder="Scanner Bobine..."
                 autoFocus
@@ -64,7 +81,7 @@ const Exits: React.FC<ExitsProps> = ({ onShip, inventory }) => {
                 Sortir
             </button>
         </form>
-        <p className="text-center text-sm text-slate-400 mt-4">Appuyez sur Entrée après le scan</p>
+        <p className="text-center text-sm text-slate-400 mt-4">Appuyez sur Entrée après le scan. Correction clavier auto active.</p>
       </div>
 
       {lastScanned && (

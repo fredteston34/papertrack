@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PaperRoll, StockStatus } from '../types';
-import { Scan, Save, RefreshCw, AlertTriangle, CheckCircle2, Lock, Unlock, ArrowRight, Keyboard } from 'lucide-react';
+import { Scan, Save, RefreshCw, CheckCircle2, Lock, Unlock, ArrowRight, Keyboard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { suggestCategory } from '../services/geminiService';
 
@@ -31,12 +31,41 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
   const saveBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    // Focus initial sur le champ bobine
     rollRef.current?.focus();
   }, []);
 
+  /**
+   * Nettoie l'entrée pour gérer les problèmes de layout clavier (ex: Netum scanner en US sur PC FR).
+   * Convertit les symboles (Shift+Chiffre US ou AZERTY) en chiffres.
+   */
+  const sanitizeInput = (input: string): string => {
+      if (!input) return '';
+      
+      let clean = input;
+
+      // Détection de pattern US Shift (Scanner Netum typique) : présence de chars spécifiques comme # @ )
+      const isUSShift = /[#@)\]]/.test(clean) || (clean.includes('&') && clean.includes('*'));
+
+      if (isUSShift) {
+         const usMap: Record<string, string> = {
+             ')': '0', '!': '1', '@': '2', '#': '3', '$': '4', '%': '5', '^': '6', '&': '7', '*': '8', '(': '9'
+         };
+         clean = clean.split('').map(c => usMap[c] || c).join('');
+      } else {
+         // Fallback AZERTY standard (si le scanner envoie &é"'(...)
+         const azertyMap: Record<string, string> = {
+             '&': '1', 'é': '2', '"': '3', '\'': '4', '(': '5', '-': '6', 'è': '7', '_': '8', 'ç': '9', 'à': '0'
+         };
+         clean = clean.split('').map(c => azertyMap[c] || c).join('');
+      }
+      
+      return clean.trim();
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    // On nettoie à la volée pour que l'utilisateur voie les chiffres
+    const val = sanitizeInput(e.target.value);
+    setFormData({ ...formData, [e.target.name]: val });
   };
 
   const toggleLock = (field: keyof typeof locked) => {
@@ -54,13 +83,11 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
     setLoadingAi(false);
   }
 
-  // Fonction intelligente pour trouver le prochain champ vide
   const focusNextEmpty = (currentData: typeof formData) => {
     if (!currentData.rollNumber) return rollRef.current?.focus();
     if (!currentData.eanProductCode) return eanRef.current?.focus();
     if (!currentData.details) return detailsRef.current?.focus();
     if (!currentData.customerOrderNumber) return orderRef.current?.focus();
-    // Si tout est rempli, on focus le bouton sauvegarder
     saveBtnRef.current?.focus();
   };
 
@@ -96,7 +123,6 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
         </div>
       ), { duration: 1500 });
       
-      // Clear fields based on lock status
       const nextState = {
         rollNumber: '',
         eanProductCode: locked.eanProductCode ? formData.eanProductCode : '',
@@ -105,8 +131,6 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
       };
       
       setFormData(nextState);
-      
-      // Refocus logic after save
       setTimeout(() => focusNextEmpty(nextState), 50);
     } else {
       toast.error("Cette bobine existe déjà en stock !");
@@ -115,19 +139,15 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
     }
   };
 
-  /**
-   * C'est ici que la magie opère.
-   * On intercepte "Entrée" (fin de scan).
-   * On analyse la longueur de la valeur scannée pour savoir où la mettre.
-   */
   const handleSmartScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       
-      const val = (e.currentTarget.value || '').trim();
+      // La valeur est déjà nettoyée par handleChange, mais on s'assure
+      const rawVal = e.currentTarget.value || '';
+      const val = sanitizeInput(rawVal);
       const len = val.length;
       
-      // Si vide, on passe juste au suivant
       if (len === 0) {
           focusNextEmpty(formData);
           return;
@@ -136,7 +156,7 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
       let updatedData = { ...formData };
       let matchedField = '';
 
-      // Logique de détection basée sur la longueur exacte
+      // Detection basée sur la longueur
       if (len === 20) {
         updatedData.rollNumber = val;
         matchedField = 'Bobine (20)';
@@ -150,30 +170,21 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
         updatedData.customerOrderNumber = val;
         matchedField = 'Commande (9)';
       } else {
-        // Longueur inconnue, on laisse la valeur dans le champ actuel (saisie manuelle ?)
         const currentName = e.currentTarget.name as keyof typeof formData;
         updatedData[currentName] = val;
       }
 
-      // Si on a détecté un champ spécifique et qu'on n'était pas dedans, on vide le champ actuel s'il a pris la valeur
       if (matchedField) {
           toast.success(`${matchedField} détecté`, { position: 'bottom-center', duration: 1000 });
-          
-          // Si j'ai scanné dans un champ A mais que c'était une valeur pour le champ B,
-          // je dois m'assurer que le champ A ne garde pas cette valeur incorrecte
           const currentInputName = e.currentTarget.name;
-          // Si la valeur est maintenant stockée ailleurs, on remet l'ancienne valeur du champ courant ou vide
           if (updatedData[currentInputName as keyof typeof formData] === val && len !== getExpectedLength(currentInputName)) {
-             // C'est un mismatch (ex: scan EAN dans champ Bobine) -> on nettoie le champ courant
              updatedData[currentInputName as keyof typeof formData] = ''; 
           }
       }
 
       setFormData(updatedData);
       
-      // On attend un micro-tick pour que le state se mette à jour, puis on focus le prochain vide
       setTimeout(() => {
-          // Si tout est plein, on peut soit submit auto, soit focus le bouton save
           if (updatedData.rollNumber && updatedData.eanProductCode && updatedData.details && updatedData.customerOrderNumber) {
               saveBtnRef.current?.focus();
           } else {
@@ -198,7 +209,7 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Entrées de Stock</h2>
-          <p className="text-slate-500 mt-1">Scanner les codes-barres dans n'importe quel ordre.</p>
+          <p className="text-slate-500 mt-1">Scanner avec Netum : Correction clavier auto active.</p>
         </div>
         <div className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg flex items-center gap-2 animate-pulse">
             <Scan size={20} />
@@ -209,7 +220,7 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <div className="bg-slate-50 px-8 py-4 border-b border-slate-200 flex items-center gap-2 text-slate-600">
             <Keyboard size={18} />
-            <span className="text-sm">La détection automatique place le code dans le bon champ selon sa taille (20, 13, 18, 9).</span>
+            <span className="text-sm">Detection auto (20, 18, 13, 9 chiffres) et correction automatique des symboles.</span>
         </div>
         
         <div className="p-8 space-y-6">
