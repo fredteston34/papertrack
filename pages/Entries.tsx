@@ -103,20 +103,17 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
   const handleKeyDown = (e: React.KeyboardEvent, nextRef: React.RefObject<HTMLInputElement | null>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // If we have a next field and the current flow requires it (not strictly enforced but good UX)
-      // Actually, for scanner: if field is filled, go next. If last field or all required filled, submit.
       
       const currentName = (e.target as HTMLInputElement).name;
       const val = formData[currentName as keyof typeof formData];
 
-      if (!val) return; // Don't advance if empty (unless optional?)
+      if (!val) return; 
 
       if (nextRef && nextRef.current) {
-         // Check if next field is already filled (due to lock), if so, try to find the one after or submit
+         // Logic to skip locked/filled fields
          if (currentName === 'rollNumber' && formData.eanProductCode && formData.details && formData.customerOrderNumber) {
              submitForm();
          } else if (currentName === 'rollNumber' && formData.eanProductCode) {
-             // Skip EAN if filled
              detailsRef.current?.focus();
          } else {
              nextRef.current.focus();
@@ -163,6 +160,9 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
                     className="w-full pl-4 pr-4 py-3 rounded-lg border-2 border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all font-mono text-lg font-bold text-slate-900 shadow-sm"
                     placeholder="Scanner ici..."
                     autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 animate-pulse pointer-events-none">
                     <ArrowRight size={20} />
@@ -191,6 +191,10 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
                 onKeyDown={(e) => handleKeyDown(e, detailsRef)}
                 className={`w-full px-4 py-3 rounded-lg border ${locked.eanProductCode ? 'bg-amber-50 border-amber-200' : 'border-slate-300'} focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono`}
                 placeholder="Code EAN..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
               />
             </div>
 
@@ -216,6 +220,10 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
                     onKeyDown={(e) => handleKeyDown(e, orderRef)}
                     className={`flex-1 px-4 py-3 rounded-lg border ${locked.details ? 'bg-amber-50 border-amber-200' : 'border-slate-300'} focus:ring-2 focus:ring-blue-500 outline-none transition-all`}
                     placeholder="Description du papier..."
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
                 />
                 <button 
                     type="button" 
@@ -249,6 +257,10 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
                 onKeyDown={(e) => handleKeyDown(e, null)}
                 className={`w-full px-4 py-3 rounded-lg border ${locked.customerOrderNumber ? 'bg-amber-50 border-amber-200' : 'border-slate-300'} focus:ring-2 focus:ring-blue-500 outline-none transition-all`}
                 placeholder="Référence de commande..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
               />
             </div>
           </div>
