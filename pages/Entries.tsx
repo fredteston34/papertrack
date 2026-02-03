@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PaperRoll, StockStatus } from '../types';
-import { Scan, Save, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Scan, Save, RefreshCw, AlertTriangle, CheckCircle2, Lock, Unlock, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { suggestCategory } from '../services/geminiService';
 
@@ -15,17 +15,30 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
     details: '',
     customerOrderNumber: '',
   });
+
+  const [locked, setLocked] = useState({
+    eanProductCode: false,
+    details: false,
+    customerOrderNumber: false
+  });
   
   const [loadingAi, setLoadingAi] = useState(false);
-  const rollInputRef = useRef<HTMLInputElement>(null);
+  
+  const rollRef = useRef<HTMLInputElement>(null);
+  const eanRef = useRef<HTMLInputElement>(null);
+  const detailsRef = useRef<HTMLInputElement>(null);
+  const orderRef = useRef<HTMLInputElement>(null);
 
-  // Auto focus on mount
   useEffect(() => {
-    rollInputRef.current?.focus();
+    rollRef.current?.focus();
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const toggleLock = (field: keyof typeof locked) => {
+    setLocked(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
   const handleAiSuggest = async () => {
@@ -34,15 +47,13 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
     const category = await suggestCategory(formData.details);
     if (category) {
         toast.success(`Catégorie suggérée : ${category}`);
-        // Optionally append or replace, here we append
         setFormData(prev => ({...prev, details: `${prev.details} [${category}]`}));
     }
     setLoadingAi(false);
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.rollNumber || !formData.eanProductCode) {
+  const submitForm = () => {
+     if (!formData.rollNumber || !formData.eanProductCode) {
       toast.error("Numéro de bobine et Code EAN requis");
       return;
     }
@@ -72,22 +83,52 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
         </div>
       ), { duration: 1500 });
       
-      // Clear for next scan, keep Order Number as it likely stays same for batch
-      setFormData({
+      // Clear fields based on lock status
+      setFormData(prev => ({
         rollNumber: '',
-        eanProductCode: '',
-        details: '',
-        customerOrderNumber: formData.customerOrderNumber
-      });
-      // Refocus for rapid scanning
-      rollInputRef.current?.focus();
+        eanProductCode: locked.eanProductCode ? prev.eanProductCode : '',
+        details: locked.details ? prev.details : '',
+        customerOrderNumber: locked.customerOrderNumber ? prev.customerOrderNumber : ''
+      }));
+      
+      // Always refocus roll number for next scan
+      setTimeout(() => rollRef.current?.focus(), 50);
     } else {
       toast.error("Cette bobine existe déjà en stock !");
+      setFormData(prev => ({...prev, rollNumber: ''}));
+      rollRef.current?.focus();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, nextRef: React.RefObject<HTMLInputElement | null>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // If we have a next field and the current flow requires it (not strictly enforced but good UX)
+      // Actually, for scanner: if field is filled, go next. If last field or all required filled, submit.
+      
+      const currentName = (e.target as HTMLInputElement).name;
+      const val = formData[currentName as keyof typeof formData];
+
+      if (!val) return; // Don't advance if empty (unless optional?)
+
+      if (nextRef && nextRef.current) {
+         // Check if next field is already filled (due to lock), if so, try to find the one after or submit
+         if (currentName === 'rollNumber' && formData.eanProductCode && formData.details && formData.customerOrderNumber) {
+             submitForm();
+         } else if (currentName === 'rollNumber' && formData.eanProductCode) {
+             // Skip EAN if filled
+             detailsRef.current?.focus();
+         } else {
+             nextRef.current.focus();
+         }
+      } else {
+        submitForm();
+      }
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Entrées de Stock</h2>
@@ -102,46 +143,78 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <div className="bg-slate-50 px-8 py-4 border-b border-slate-200 flex items-center gap-2 text-slate-600">
             <AlertTriangle size={18} />
-            <span className="text-sm">Assurez-vous que le curseur est dans le champ "Numéro de Bobine" avant de scanner.</span>
+            <span className="text-sm">Configurez les champs fixes (Cadenas) pour scanner en série rapide.</span>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+        <div className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Roll Number - Never Locked */}
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">Numéro de Bobine (Roll Number)</label>
-              <input
-                ref={rollInputRef}
-                type="text"
-                name="rollNumber"
-                value={formData.rollNumber}
-                onChange={handleChange}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-mono text-lg"
-                placeholder="Scanner ici..."
-                autoComplete="off"
-              />
+              <div className="relative">
+                <input
+                    ref={rollRef}
+                    type="text"
+                    name="rollNumber"
+                    value={formData.rollNumber}
+                    onChange={handleChange}
+                    onKeyDown={(e) => handleKeyDown(e, eanRef)}
+                    className="w-full pl-4 pr-4 py-3 rounded-lg border-2 border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all font-mono text-lg font-bold text-slate-900 shadow-sm"
+                    placeholder="Scanner ici..."
+                    autoComplete="off"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 animate-pulse pointer-events-none">
+                    <ArrowRight size={20} />
+                </div>
+              </div>
             </div>
 
+            {/* EAN Code */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Code Produit (EAN)</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700">Code Produit (EAN)</label>
+                <button 
+                    onClick={() => toggleLock('eanProductCode')}
+                    className={`text-xs flex items-center gap-1 px-2 py-1 rounded ${locked.eanProductCode ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}
+                >
+                    {locked.eanProductCode ? <Lock size={12} /> : <Unlock size={12} />}
+                    {locked.eanProductCode ? 'Figé' : 'Libre'}
+                </button>
+              </div>
               <input
+                ref={eanRef}
                 type="text"
                 name="eanProductCode"
                 value={formData.eanProductCode}
                 onChange={handleChange}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-mono"
+                onKeyDown={(e) => handleKeyDown(e, detailsRef)}
+                className={`w-full px-4 py-3 rounded-lg border ${locked.eanProductCode ? 'bg-amber-50 border-amber-200' : 'border-slate-300'} focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono`}
                 placeholder="Code EAN..."
               />
             </div>
 
+            {/* Details */}
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-slate-700">Détails (Rolls Details)</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700">Détails (Rolls Details)</label>
+                <button 
+                    onClick={() => toggleLock('details')}
+                    className={`text-xs flex items-center gap-1 px-2 py-1 rounded ${locked.details ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}
+                >
+                    {locked.details ? <Lock size={12} /> : <Unlock size={12} />}
+                    {locked.details ? 'Figé' : 'Libre'}
+                </button>
+              </div>
               <div className="flex gap-2">
                 <input
+                    ref={detailsRef}
                     type="text"
                     name="details"
                     value={formData.details}
                     onChange={handleChange}
-                    className="flex-1 px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    onKeyDown={(e) => handleKeyDown(e, orderRef)}
+                    className={`flex-1 px-4 py-3 rounded-lg border ${locked.details ? 'bg-amber-50 border-amber-200' : 'border-slate-300'} focus:ring-2 focus:ring-blue-500 outline-none transition-all`}
                     placeholder="Description du papier..."
                 />
                 <button 
@@ -149,21 +222,32 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
                     onClick={handleAiSuggest}
                     disabled={loadingAi || !formData.details}
                     className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors flex items-center gap-2"
-                    title="IA Suggestion"
                 >
                     {loadingAi ? <RefreshCw className="animate-spin" size={20}/> : <span className="font-bold text-xs">AI TAG</span>}
                 </button>
               </div>
             </div>
 
+            {/* Order Number */}
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-slate-700">Commande Client (Order Number)</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700">Commande Client (Order Number)</label>
+                <button 
+                    onClick={() => toggleLock('customerOrderNumber')}
+                    className={`text-xs flex items-center gap-1 px-2 py-1 rounded ${locked.customerOrderNumber ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}
+                >
+                    {locked.customerOrderNumber ? <Lock size={12} /> : <Unlock size={12} />}
+                    {locked.customerOrderNumber ? 'Figé' : 'Libre'}
+                </button>
+              </div>
               <input
+                ref={orderRef}
                 type="text"
                 name="customerOrderNumber"
                 value={formData.customerOrderNumber}
                 onChange={handleChange}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                onKeyDown={(e) => handleKeyDown(e, null)}
+                className={`w-full px-4 py-3 rounded-lg border ${locked.customerOrderNumber ? 'bg-amber-50 border-amber-200' : 'border-slate-300'} focus:ring-2 focus:ring-blue-500 outline-none transition-all`}
                 placeholder="Référence de commande..."
               />
             </div>
@@ -175,17 +259,17 @@ const Entries: React.FC<EntriesProps> = ({ onAdd }) => {
               onClick={() => setFormData({rollNumber: '', eanProductCode: '', details: '', customerOrderNumber: ''})}
               className="px-6 py-3 rounded-xl border border-slate-300 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
             >
-              Effacer
+              Tout Effacer
             </button>
             <button
-              type="submit"
+              onClick={submitForm}
               className="px-8 py-3 rounded-xl bg-blue-600 text-white font-semibold shadow-lg shadow-blue-500/30 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2"
             >
               <Save size={20} />
-              Enregistrer Entrée
+              Enregistrer
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
