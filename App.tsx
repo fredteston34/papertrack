@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
+import MobileNavbar from './components/MobileNavbar';
 import { ViewState, PaperRoll, StockStatus } from './types';
 import { getInventory, saveRoll, updateRollStatus, deleteRoll } from './services/storageService';
 import Dashboard from './pages/Dashboard';
@@ -8,12 +9,11 @@ import Exits from './pages/Exits';
 import Inventory from './pages/Inventory';
 import Assistant from './pages/Assistant';
 import { Toaster } from 'react-hot-toast';
-import { Menu } from 'lucide-react';
+import { Box } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
   const [inventory, setInventory] = useState<PaperRoll[]>([]);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Initial load
   useEffect(() => {
@@ -65,31 +65,46 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      {/* Desktop Sidebar */}
       <Sidebar 
         currentView={currentView} 
         setView={setCurrentView} 
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
       />
       
-      <main className="flex-1 lg:ml-64 transition-all duration-300">
-        <div className="sticky top-0 z-30 bg-slate-50/80 backdrop-blur-md p-4 lg:hidden border-b border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-                 <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600 hover:bg-slate-200 rounded-lg">
-                    <Menu size={24} />
-                 </button>
-                 <span className="font-bold text-slate-800">PaperTrack</span>
+      {/* Mobile Header */}
+      <header className="lg:hidden fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 z-40 px-4 h-16 flex items-center justify-center">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 p-1.5 rounded text-white">
+                <Box size={20} />
             </div>
-        </div>
+            <span className="font-bold text-lg text-slate-800 tracking-tight">PaperTrack</span>
+          </div>
+      </header>
 
-        <div className="p-4 md:p-8 overflow-y-auto min-h-[calc(100vh-4rem)] lg:min-h-screen">
-            <div className="max-w-7xl mx-auto">
+      <main className="lg:ml-64 pt-20 lg:pt-8 pb-24 lg:pb-8 min-h-screen transition-all duration-300">
+        <div className="px-4 md:px-8 max-w-7xl mx-auto">
+            <div className="animate-enter">
                 {renderView()}
             </div>
         </div>
       </main>
-      <Toaster position="top-right" />
+
+      {/* Mobile Bottom Navigation */}
+      <MobileNavbar currentView={currentView} setView={setCurrentView} />
+
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+            className: 'text-sm font-medium',
+            style: {
+                borderRadius: '12px',
+                background: '#fff',
+                color: '#333',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            },
+        }} 
+       />
     </div>
   );
 };

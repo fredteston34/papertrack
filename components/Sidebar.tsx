@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, LogIn, LogOut, Package, Bot, Box, X } from 'lucide-react';
+import { LayoutDashboard, LogIn, LogOut, Package, Bot, Box } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
   currentView: ViewState;
   setView: (view: ViewState) => void;
-  isOpen: boolean;
-  onClose: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -33,71 +31,53 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, onClose
     { id: 'ASSISTANT', label: 'Assistant IA', icon: <Bot size={20} /> },
   ];
 
-  const handleNavigation = (id: ViewState) => {
-    setView(id);
-    if (window.innerWidth < 1024) {
-      onClose();
-    }
-  };
-
   return (
-    <>
-      {/* Overlay mobile */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
-          onClick={onClose}
-        />
-      )}
-
-      <div className={`fixed top-0 left-0 h-full w-64 bg-slate-900 text-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg">
+    <div className="hidden lg:flex fixed top-0 left-0 h-full w-64 bg-slate-900 text-white shadow-2xl z-50 flex-col">
+        <div className="p-6 flex items-center gap-3 border-b border-slate-800">
+            <div className="bg-gradient-to-tr from-blue-600 to-blue-400 p-2 rounded-lg shadow-lg shadow-blue-900/50">
               <Box size={24} className="text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-lg tracking-tight">PaperTrack</h1>
-              <p className="text-xs text-slate-400">Gestion de Stock</p>
+              <h1 className="font-bold text-lg tracking-tight text-white">PaperTrack</h1>
+              <p className="text-xs text-slate-400 font-medium">Pro Edition</p>
             </div>
-          </div>
-          <button onClick={onClose} className="lg:hidden text-slate-400 hover:text-white">
-            <X size={24} />
-          </button>
         </div>
 
-        <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
+        <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
           {menuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => handleNavigation(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+              onClick={() => setView(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group relative overflow-hidden ${
                 currentView === item.id
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-white hover:translate-x-1'
               }`}
             >
-              <span className={`${currentView === item.id ? 'text-white' : 'text-slate-400 group-hover:text-white'}`}>
+              <span className={`relative z-10 ${currentView === item.id ? 'text-white' : 'text-slate-400 group-hover:text-blue-400 transition-colors'}`}>
                 {item.icon}
               </span>
-              <span className="font-medium">{item.label}</span>
+              <span className="relative z-10 font-medium tracking-wide">{item.label}</span>
+              
+              {currentView === item.id && (
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-500 opacity-100" />
+              )}
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
-          <div className={`rounded-lg p-3 border ${isOnline ? 'bg-slate-800/50 border-slate-700' : 'bg-red-900/20 border-red-800'}`}>
-            <p className="text-xs text-slate-400 mb-1">État du Système</p>
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-              <span className={`text-xs font-semibold ${isOnline ? 'text-green-400' : 'text-red-400'}`}>
-                {isOnline ? 'En ligne' : 'Hors ligne'}
-              </span>
+        <div className="p-4 border-t border-slate-800 bg-slate-900">
+          <div className={`rounded-xl p-4 border transition-colors ${isOnline ? 'bg-slate-800/50 border-slate-700' : 'bg-red-900/10 border-red-900/30'}`}>
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Système</span>
+                <span className={`w-2 h-2 rounded-full shadow-lg ${isOnline ? 'bg-emerald-500 shadow-emerald-500/50 animate-pulse' : 'bg-red-500'}`}></span>
+            </div>
+            <div className={`text-sm font-semibold ${isOnline ? 'text-emerald-400' : 'text-red-400'}`}>
+                {isOnline ? 'Connecté' : 'Hors ligne'}
             </div>
           </div>
         </div>
       </div>
-    </>
   );
 };
 
