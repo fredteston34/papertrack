@@ -34,28 +34,38 @@ const Inventory: React.FC<InventoryProps> = ({ inventory, onDelete }) => {
   }
 
   const exportCSV = () => {
-    const headers = ["Roll Number", "EAN", "Details", "Order", "Status", "Date In", "Date Out"];
-    const csvContent = "data:text/csv;charset=utf-8," 
-        + headers.join(",") + "\n"
-        + filteredData.map(e => {
-            return [
-                e.rollNumber,
-                e.eanProductCode,
-                `"${e.details.replace(/"/g, '""')}"`, // escape quotes
-                e.customerOrderNumber,
-                e.status,
-                e.dateIn,
-                e.dateOut || ''
-            ].join(",")
-        }).join("\n");
+    const headers = ["Numero Bobine", "Code EAN", "Details", "Commande", "Statut", "Date Entree", "Date Sortie"];
+    
+    const formatDate = (dateStr?: string) => {
+        if (!dateStr) return '';
+        return new Date(dateStr).toLocaleString('fr-FR');
+    };
 
-    const encodedUri = encodeURI(csvContent);
+    const rows = filteredData.map(e => {
+        return [
+            e.rollNumber,
+            e.eanProductCode,
+            `"${e.details.replace(/"/g, '""')}"`,
+            e.customerOrderNumber,
+            e.status === StockStatus.IN_STOCK ? 'En Stock' : 'Expédié',
+            `"${formatDate(e.dateIn)}"`,
+            `"${formatDate(e.dateOut)}"`
+        ].join(";"); // Utilisation du point-virgule pour meilleure compatibilité Excel FR
+    });
+
+    const csvBody = [headers.join(";"), ...rows].join("\n");
+    // Ajout du BOM pour l'encodage UTF-8 dans Excel
+    const blob = new Blob(["\uFEFF" + csvBody], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "inventory_export.csv");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `inventaire_papertrack_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Export CSV téléchargé !");
   };
 
   return (
@@ -86,23 +96,23 @@ const Inventory: React.FC<InventoryProps> = ({ inventory, onDelete }) => {
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
-            <Filter size={18} className="ml-2 text-slate-400" />
+          <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200 overflow-x-auto">
+            <Filter size={18} className="ml-2 text-slate-400 flex-shrink-0" />
             <button 
                 onClick={() => setFilterStatus('ALL')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterStatus === 'ALL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${filterStatus === 'ALL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
                 Tout
             </button>
             <button 
                 onClick={() => setFilterStatus('IN_STOCK')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterStatus === 'IN_STOCK' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${filterStatus === 'IN_STOCK' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
                 En Stock
             </button>
             <button 
                 onClick={() => setFilterStatus('SHIPPED')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterStatus === 'SHIPPED' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${filterStatus === 'SHIPPED' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
                 Expédié
             </button>
@@ -110,7 +120,7 @@ const Inventory: React.FC<InventoryProps> = ({ inventory, onDelete }) => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
+          <table className="w-full text-left text-sm text-slate-600 min-w-[800px]">
             <thead className="bg-slate-50 text-slate-900 font-semibold border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4">Bobine</th>

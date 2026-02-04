@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { PaperRoll, StockStatus } from '../types';
 import { LogOut, CheckCircle, XCircle, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { sanitizeInput } from '../utils/scanner';
 
 interface ExitsProps {
   onShip: (rollNumber: string) => PaperRoll | null;
@@ -17,26 +18,35 @@ const Exits: React.FC<ExitsProps> = ({ onShip, inventory }) => {
     inputRef.current?.focus();
   }, []);
 
-  const sanitizeInput = (input: string): string => {
-      if (!input) return '';
-      let clean = input;
-      const isUSShift = /[#@)\]]/.test(clean) || (clean.includes('&') && clean.includes('*'));
-      if (isUSShift) {
-         const usMap: Record<string, string> = { ')': '0', '!': '1', '@': '2', '#': '3', '$': '4', '%': '5', '^': '6', '&': '7', '*': '8', '(': '9' };
-         clean = clean.split('').map(c => usMap[c] || c).join('');
-      } else {
-         const azertyMap: Record<string, string> = { '&': '1', 'é': '2', '"': '3', '\'': '4', '(': '5', '-': '6', 'è': '7', '_': '8', 'ç': '9', 'à': '0' };
-         clean = clean.split('').map(c => azertyMap[c] || c).join('');
-      }
-      return clean.trim();
-  };
-
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scanValue.trim()) return;
     
-    // Clean before submitting
-    const cleanedValue = sanitizeInput(scanValue);
+    // Clean before submitting - Strict Numeric for Roll Numbers
+    const cleanedValue = sanitizeInput(scanValue, true);
+
+    // Validation stricte : Une bobine DOIT avoir 20 caractères
+    if (cleanedValue.length !== 20) {
+        toast.custom((t) => (
+            <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-red-50 border border-red-200 shadow-lg rounded-lg pointer-events-auto flex p-4`}>
+                <div className="flex-shrink-0">
+                    <XCircle className="h-6 w-6 text-red-500" />
+                </div>
+                <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-red-900">Code Barre Invalide</p>
+                    <p className="mt-1 text-sm text-red-700">
+                        Ce n'est pas un numéro de bobine valide (20 chiffres).
+                    </p>
+                    <p className="mt-1 text-xs text-red-500">
+                        Reçu : {cleanedValue.length} chiffres. (Brut: {scanValue.length})
+                    </p>
+                </div>
+            </div>
+        ), { duration: 4000 });
+        
+        setScanValue(cleanedValue); // Montre la valeur nettoyée à l'utilisateur
+        return;
+    }
 
     const result = onShip(cleanedValue);
     
@@ -69,7 +79,7 @@ const Exits: React.FC<ExitsProps> = ({ onShip, inventory }) => {
                 ref={inputRef}
                 type="text"
                 value={scanValue}
-                onChange={(e) => setScanValue(sanitizeInput(e.target.value))}
+                onChange={(e) => setScanValue(sanitizeInput(e.target.value, true))}
                 className="w-full pl-12 pr-4 py-4 text-2xl font-mono text-slate-900 border-2 border-slate-200 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-500/20 outline-none transition-all"
                 placeholder="Scanner Bobine..."
                 autoFocus
